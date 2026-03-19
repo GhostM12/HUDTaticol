@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TACTCOM MOBILE v2.1</title>
+    <style>
+        :root {
+            --milsim-green: #4f6f52;
+            --bg-dark: #0d0f12;
+            --border: #2a2f26;
+            --text-dim: #a0a6a0;
+        }
+
+        body {
+            background-color: #050505;
+            color: var(--text-dim);
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-transform: uppercase;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Gatilho Mobile - Maior para o polegar */
+        #btn-trigger {
+            position: fixed;
+            bottom: 5%;
+            width: 80%;
+            padding: 15px;
+            background: #000;
+            border: 1px solid var(--milsim-green);
+            color: var(--milsim-green);
+            cursor: pointer;
+            font-weight: bold;
+            letter-spacing: 2px;
+            z-index: 1000;
+            font-size: 16px;
+        }
+
+        /* Frame Principal Adaptado */
+        #hud-frame {
+            display: none;
+            width: 85vw;
+            max-width: 400px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            padding: 20px;
+            position: relative;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.9);
+            margin-bottom: 80px; /* Espaço para o botão */
+        }
+
+        /* Sidebar Mobile - Agora na esquerda para facilitar o toque */
+        #sidebar {
+            position: absolute;
+            left: -60px;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .node {
+            width: 55px;
+            height: 55px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--milsim-green);
+            font-size: 24px;
+        }
+
+        .node.active {
+            background: var(--milsim-green);
+            color: #000;
+        }
+
+        /* Conteúdo */
+        h2 { font-size: 14px; color: #fff; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 15px; }
+        .data-row { background: rgba(255,255,255,0.02); padding: 12px; margin-bottom: 6px; font-size: 12px; border-left: 3px solid var(--border); }
+        
+        input, textarea, select { width: 100%; background: #000; border: 1px solid var(--border); color: #fff; padding: 12px; margin: 8px 0; font-size: 14px; font-family: monospace; }
+        .action-btn { background: var(--milsim-green); color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; }
+        
+        .reset-btn { background: #441111; color: #fff; margin-top: 25px; }
+    </style>
+</head>
+<body>
+
+<button id="btn-trigger" onclick="toggleHUD()">SYST_LINK: START</button>
+
+<div id="hud-frame">
+    <div id="sidebar"></div>
+    <div id="display-area"></div>
+</div>
+
+<script>
+    const STORAGE_KEY = 'TACTCOM_MOBILE_V2';
+    
+    let state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+        active: 'status',
+        tabs: [
+            { id: 'status', icon: '👤', title: 'Unit Status', content: ['Operador: Nevasca', 'Setor: Uberlândia-MG', 'Sincronia: 100%'] },
+            { id: 'config', icon: '⚙️', title: 'Settings', content: [] }
+        ]
+    };
+
+    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    function render() {
+        const side = document.getElementById('sidebar');
+        side.innerHTML = state.tabs.map(t => `
+            <div class="node ${state.active === t.id ? 'active' : ''}" onclick="changeTab('${t.id}')">
+                ${t.icon}
+            </div>
+        `).join('');
+
+        const display = document.getElementById('display-area');
+        const currentTab = state.tabs.find(t => t.id === state.active);
+
+        if (state.active === 'config') {
+            display.innerHTML = `
+                <h2>Add Unit</h2>
+                <input id="icon-input" placeholder="Emoji">
+                <input id="title-input" placeholder="Título">
+                <button class="action-btn" onclick="addTab()">ADICIONAR</button>
+                
+                <h2 style="margin-top:20px">Update Data</h2>
+                <select id="edit-select">
+                    ${state.tabs.filter(t => t.id !== 'config').map(t => `<option value="${t.id}">${t.title}</option>`).join('')}
+                </select>
+                <textarea id="edit-content" placeholder="Conteúdo..." rows="3"></textarea>
+                <button class="action-btn" onclick="updateContent()">SALVAR</button>
+                
+                <button class="action-btn reset-btn" onclick="resetSystem()">HARD RESET</button>
+            `;
+        } else {
+            display.innerHTML = `
+                <h2>${currentTab.title}</h2>
+                ${currentTab.content.map(line => `<div class="data-row">${line}</div>`).join('')}
+            `;
+        }
+    }
+
+    function toggleHUD() {
+        const frame = document.getElementById('hud-frame');
+        const btn = document.getElementById('btn-trigger');
+        const isHidden = frame.style.display === 'none' || frame.style.display === '';
+        
+        frame.style.display = isHidden ? 'block' : 'none';
+        btn.innerText = isHidden ? 'SYST_LINK: DISCONNECT' : 'SYST_LINK: START';
+        if (isHidden) render();
+    }
+
+    function changeTab(id) {
+        state.active = id;
+        save();
+        render();
+    }
+
+    function addTab() {
+        const icon = document.getElementById('icon-input').value || '📑';
+        const title = document.getElementById('title-input').value || 'Nova Guia';
+        const newId = 'tab_' + Date.now();
+        state.tabs.splice(state.tabs.length - 1, 0, { id: newId, icon, title, content: ['Unidade Online.'] });
+        state.active = newId;
+        save();
+        render();
+    }
+
+    function updateContent() {
+        const targetId = document.getElementById('edit-select').value;
+        const newText = document.getElementById('edit-content').value;
+        const targetTab = state.tabs.find(t => t.id === targetId);
+        if (newText) {
+            targetTab.content = newText.split('\n');
+            save();
+            render();
+            alert('Atualizado!');
+        }
+    }
+
+    function resetSystem() {
+        if (confirm("Reset total?")) {
+            localStorage.removeItem(STORAGE_KEY);
+            location.reload();
+        }
+    }
+</script>
+
+</body>
+</html>
